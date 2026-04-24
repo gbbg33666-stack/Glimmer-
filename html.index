@@ -1,0 +1,335 @@
+using UnityEngine;
+
+public class PlayerController : MonoBehaviour
+{
+    [Header("Movement Settings")]
+    public float moveSpeed = 8f;
+    public float jetpackForce = 15f;
+    public float maxJetpackFuel = 100f;
+    
+    private float currentFuel;
+    private Rigidbody2D rb;
+    private Vector2 moveInput;
+
+    void Start()
+    {
+        rb = GetComponent<Rigidbody2D>();
+        currentFuel = maxJetpackFuel;
+    }
+
+    void Update()
+    {
+        // 1. استقبال مدخلات الحركة (أفقياً)
+        moveInput.x = Input.GetAxisRaw("Horizontal");
+
+        // 2. نظام الطيران (Jetpack) عند الضغط على Space أو زر القفز
+        if (Input.GetKey(KeyCode.Space) && currentFuel > 0)
+        {
+            Fly();
+        }
+        else if (currentFuel < maxJetpackFuel)
+        {
+            // شحن الوقود تلقائياً عند التوقف عن الطيران
+            currentFuel += Time.deltaTime * 10f;
+        }
+    }
+
+    void FixedUpdate()
+    {
+        // تطبيق الحركة الأفقية
+        rb.velocity = new Vector2(moveInput.x * moveSpeed, rb.velocity.y);
+    }
+
+    void Fly()
+    {
+        // إضافة قوة للأعلى ومحاكاة استهلاك الوقود
+        rb.AddForce(Vector2.up * jetpackForce, ForceMode2D.Force);
+        currentFuel -= Time.deltaTime * 20f;
+        
+        Debug.Log("Fuel Level: " + (int)currentFuel);
+    }
+}
+using UnityEngine;
+
+public class Weapon : MonoBehaviour
+{
+    public GameObject bulletPrefab;
+    public Transform firePoint;
+    public float fireRate = 0.2f;
+    private float nextFireTime;
+
+    void Update()
+    {
+        // 1. تدوير السلاح ليتبع الماوس
+        Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector2 direction = (Vector3)mousePos - transform.position;
+        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+        transform.rotation = Quaternion.Euler(0, 0, angle);
+
+        // 2. إطلاق النار عند النقر
+        if (Input.GetButton("Fire1") && Time.time >= nextFireTime)
+        {
+            Shoot();
+            nextFireTime = Time.time + fireRate;
+        }
+    }
+
+    void Shoot()
+    {
+        // إنشاء الرصاصة وإعطاؤها قوة للأمام
+        GameObject bullet = Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
+        Rigidbody2D rb = bullet.GetComponent<Rigidbody2D>();
+        rb.velocity = firePoint.right * 20f; // سرعة الرصاصة
+    }
+}
+using UnityEngine;
+
+public class Health : MonoBehaviour
+{
+    public float maxHealth = 100f;
+    private float currentHealth;
+
+    void Start()
+    {
+        currentHealth = maxHealth;
+    }
+
+    public void TakeDamage(float amount)
+    {
+        currentHealth -= amount;
+        Debug.Log(gameObject.name + " Health: " + currentHealth);
+
+        if (currentHealth <= 0)
+        {
+            Die();
+        }
+    }
+
+    void Die()
+    {
+        // هنا يمكنك إضافة تأثير انفجار أو صوت قبل التدمير
+        Destroy(gameObject);
+    }
+}
+using UnityEngine;
+
+public class CameraFollow : MonoBehaviour
+{
+    public Transform target; // اسحب كائن اللاعب هنا في الـ Inspector
+    public float smoothSpeed = 0.125f;
+    public Vector3 offset; // لجعل الكاميرا بعيدة قليلاً (مثلاً Z = -10)
+
+    void LateUpdate()
+    {
+        if (target != null)
+        {
+            Vector3 desiredPosition = target.position + offset;
+            Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed);
+            transform.position = smoothedPosition;
+        }
+    }
+}
+using UnityEngine.UI; // لا تنسى إضافة هذا السطر
+
+public class PlayerUI : MonoBehaviour
+{
+    public Slider healthSlider;
+    public Slider fuelSlider;
+    
+    // استدعِ هذه الدوال من سكربت الـ Health والـ PlayerController
+    public void UpdateHealth(float value, float max)
+    {
+        healthSlider.value = value / max;
+    }
+
+    public void UpdateFuel(float value, float max)
+    {
+        fuelSlider.value = value / max;
+    }
+}
+using UnityEngine;
+
+public class WeaponSwitching : MonoBehaviour
+{
+    public int selectedWeapon = 0;
+
+    void Start()
+    {
+        SelectWeapon();
+    }
+
+    void Update()
+    {
+        int previousSelectedWeapon = selectedWeapon;
+
+        // التبديل عبر أرقام لوحة المفاتيح (للتجربة) أو زر في الواجهة
+        if (Input.GetKeyDown(KeyCode.Alpha1)) selectedWeapon = 0;
+        if (Input.GetKeyDown(KeyCode.Alpha2)) selectedWeapon = 1;
+
+        if (previousSelectedWeapon != selectedWeapon)
+        {
+            SelectWeapon();
+        }
+    }
+
+    void SelectWeapon()
+    {
+        int i = 0;
+        foreach (Transform weapon in transform)
+        {
+            if (i == selectedWeapon)
+                weapon.gameObject.SetActive(true);
+            else
+                weapon.gameObject.SetActive(false);
+            i++;
+        }
+    }
+}
+// داخل سكربت Weapon.cs
+public Joystick rightJoystick; // اسحب الجوستيك الأيمن هنا
+
+void Update()
+{
+    Vector2 direction = rightJoystick.Direction;
+    
+    if (direction.magnitude > 0.1f) // إذا كان اللاعب يحرك الجوستيك
+    {
+        // تدوير السلاح
+        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+        transform.rotation = Quaternion.Euler(0, 0, angle);
+
+        // إطلاق النار تلقائياً عند السحب
+        if (Time.time >= nextFireTime)
+        {
+            Shoot();
+            nextFireTime = Time.time + fireRate;
+        }
+    }
+}
+using UnityEngine;
+
+public class EnemyAI : MonoBehaviour
+{
+    public Transform player;      // مرجع للاعب
+    public float moveSpeed = 4f;
+    public float stoppingDistance = 5f; // المسافة التي يتوقف عندها ويبدأ الإطلاق
+    public GameObject bulletPrefab;
+    public Transform firePoint;
+    public float fireRate = 1f;
+    
+    private float nextFireTime;
+
+    void Update()
+    {
+        if (player == null) return;
+
+        // 1. حساب المسافة والاتجاه نحو اللاعب
+        float distance = Vector2.Distance(transform.position, player.position);
+        Vector2 direction = (player.position - transform.position).normalized;
+
+        // 2. التحرك نحو اللاعب إذا كان بعيداً
+        if (distance > stoppingDistance)
+        {
+            transform.position = Vector2.MoveTowards(transform.position, player.position, moveSpeed * Time.deltaTime);
+        }
+
+        // 3. تدوير السلاح (أو العدو نفسه) باتجاه اللاعب
+        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+        transform.rotation = Quaternion.Euler(0, 0, angle);
+
+        // 4. إطلاق النار إذا كان قريباً بما يكفي
+        if (distance <= stoppingDistance + 2f && Time.time >= nextFireTime)
+        {
+            Shoot();
+            nextFireTime = Time.time + fireRate;
+        }
+    }
+
+    void Shoot()
+    {
+        Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
+    }
+}
+using UnityEngine;
+
+public class Pickup : MonoBehaviour
+{
+    public enum PickupType { Health, Ammo, NewWeapon }
+    public PickupType type;
+    public float value = 20f;
+
+    void OnTriggerEnter2D(Collider2D other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            if (type == PickupType.Health)
+            {
+                other.GetComponent<Health>().TakeDamage(-value); // ضرر سالب يعني زيادة حياة
+            }
+            else if (type == PickupType.NewWeapon)
+            {
+                // كود لفتح سلاح جديد في مصفوفة الأسلحة
+            }
+
+            Destroy(gameObject); // اختفاء الصندوق بعد أخذه
+        }
+    }
+}
+using UnityEngine;
+using Photon.Pun; // مكتبة فوتون
+using Photon.Realtime;
+
+public class NetworkManager : MonoBehaviourPunCallbacks
+{
+    void Start()
+    {
+        // 1. الاتصال بخادم فوتون
+        PhotonNetwork.ConnectUsingSettings();
+    }
+
+    public override void OnConnectedToMaster()
+    {
+        Debug.Log("Connected to Server!");
+        // 2. الانضمام لغرفة عشوائية أو إنشاؤها
+        PhotonNetwork.JoinLobby();
+    }
+
+    public void CreateOrJoinRoom()
+    {
+        RoomOptions options = new RoomOptions { MaxPlayers = 6 };
+        PhotonNetwork.JoinOrCreateRoom("BattleRoom", options, TypedLobby.Default);
+    }
+
+    public override void OnJoinedRoom()
+    {
+        Debug.Log("Joined Room!");
+        // 3. تحميل مشهد القتال
+        PhotonNetwork.LoadLevel("GameScene");
+    }
+}
+// داخل سكربت يسمى GameLauncher.cs في مشهد اللعبة
+void Start()
+{
+    if (PhotonNetwork.IsConnected)
+    {
+        // توليد نسخة من اللاعب في مكان عشوائي
+        Vector2 spawnPos = new Vector2(Random.Range(-5, 5), 2);
+        PhotonNetwork.Instantiate("PlayerPrefab", spawnPos, Quaternion.identity);
+    }
+}
+// أضف MonoBehaviourPun بدلاً من MonoBehaviour
+public class PlayerController : MonoBehaviourPun 
+{
+    void Update()
+    {
+        // التأكد أن هذا الكائن يخصني وليس لاعباً آخر في الشبكة
+        if (photonView.IsMine)
+        {
+            HandleMovement();
+            HandleShooting();
+        }
+    }
+}
+void Awake() {
+    Application.targetFrameRate = 60;
+}
